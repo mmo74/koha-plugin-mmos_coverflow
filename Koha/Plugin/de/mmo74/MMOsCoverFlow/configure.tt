@@ -1,0 +1,152 @@
+[% USE raw %]
+[% USE Asset %]
+[% INCLUDE 'doc-head-open.inc' %]
+ <title>Koha: MMOs Cover Flow Plugin: Configuration</title>
+[% INCLUDE 'doc-head-close.inc' %]
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $("#coverlinks").change(function() {
+            if ( $(this).prop("checked") ){
+               $("#showtitle").prop("disabled",false);
+            }
+            else {
+                $("#showtitle").prop("disabled",true);
+            }
+    });
+});
+
+</script>
+
+[% Asset.js( "lib/codemirror/codemirror.min.js" ) | $raw %]
+[% Asset.css("lib/codemirror/codemirror.min.css") | $raw %]
+[% Asset.css("lib/codemirror/lint.min.css") | $raw %]
+
+</head>
+<body>
+[% INCLUDE 'header.inc' %]
+[% INCLUDE 'cat-search.inc' %]
+
+<div id="breadcrumbs"><a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a> &rsaquo; Cover Flow &rsaquo; Configuration</div>
+
+<div id="doc3">
+    <!-- We can access our own plugins resource files using the PLUGIN_PATH variable. -->
+    <img src="/api/v1/contrib/coverflow/static/artwork/logo.png" />
+    <h3>Koha: MMOs Cover Flow Plugin: Configuration</h3>
+    <!-- Notice our form here has no 'action', this is good, it means that our forms will always get passed back to 'plugins/run.pl'. You could hard code it instead if you prefer -->
+    <form method="get">
+        <!-- Always pass these two parameters so the plugin system knows what to execute! -->
+        <input type="hidden" name="class" value="[% CLASS %]"/>
+        <input type="hidden" name="method" value="[% METHOD %]"/>
+
+        <fieldset id="linkopts">
+            <legend>Link options</legend>
+            <p>By default titles will appear under the images and be used as link to the record.</p>
+            <input type="checkbox" id="coverlinks" name="coverlinks" [% IF (coverlinks) %]checked="checked"[% END %] value="1"> Use images as links </input>
+            <input type="checkbox" id="showtitle" name="showtitle" [%IF !(coverlinks) %] disabled="true" [% END %]  [% IF (showtitle) %]checked="checked"[% END %] value="1"> (if using images as links also show title text)</input>
+            <br/>
+        </fieldset>
+
+        <fieldset id="image options">
+            <legend>Image options</legend>
+
+            <label for="custom_image">Custom image to use if none is found (enter a full URL):</label>
+            <input type="text" id="custom_image" name="custom_image" value="[% custom_image %]" />
+
+            <br/>
+            <label for="use_coce">*EXPERIMENTAL* Use Coce for cover images.</label>
+            <input type="checkbox" id="use_coce" name="use_coce" [% IF (use_coce) %]checked="checked"[% END %] value="1"></input>
+            </br>
+            <p>Note you must define the url for the Coce service and select service providers in the system preferences if you choose this, you do not need to enable coce images for the catalog</p>
+
+            </br>
+            <label for="size_limit">Limit image size (height in pixels)</label>
+            <input type="number" id="size_limit" name="size_limit" value="[% size_limit %]" />
+
+            <br/>
+            <label for="title_limit">Limit title length (width in pixels)</label>
+            <input type="number" id="title_limit" name="title_limit" value="[% title_limit %]" />
+        </fieldset>
+
+        </br>
+
+        [% IF error %]<div class="warn alert error">Error: [% error %]</div>[% END %]
+
+        <fieldset id="image options">
+            <legend>Mapping</legend>
+            <textarea rows="15" cols="150" name="mapping" id="mapping">[% mapping %]</textarea>
+        </fieldset>
+
+        <fieldset id="instructions">
+            <legend>Setup instructions</legend>
+            <div>
+                In the above 'Mapping box' add a section for each coverflow. Begin with the report # as the ID, then specify the jQuery selector for the html element you'd like to replace with the coverflow. You can also specify an 'options' section (indented) with additional coverflow settings which are documented <a href="https://github.com/drien/jquery-flipster/blob/master/README.md">here</a>
+                <br/>Note: The plugin uses YAML syntax to read the mapping, spaces matter! :-) When using an id tag the # ust be quoted so that it is not interpreted as a YAML comment
+                <br/>Example mapping with two coverflows:<br/><br/>
+                <pre>
+---
+- id: 5
+  selector: "#coverflow"
+- id: 8
+  selector: ".random"
+  options:
+    buttons: true
+    autoplay: 4000
+    loop: true
+                </pre>
+
+                <p>Would replace an element with the id 'coverflow' with a coverflow widget using the Koha report with an id of 5, and also replace any element with a class of 'random' with a coverflow widget based on the Koha report with the id 8. The second coverflow would auto scroll through the covers with a 4 second delay and loop when reaching the end</p>
+
+                <p>Finally, add your target element such as <i>[% FILTER html %]<div id="coverflow"></div>[% END %]</i> to an OPAC system codeference such as OpacMainUserBlock. Position the element where you would like your coverflow widget to appear!</p>
+                
+                <p>Example finding items added in the last 30 days:</p>
+                <pre>
+                SELECT b.biblionumber, SUBSTRING_INDEX(m.isbn, ' ', 1) AS isbn, b.title
+                FROM items i
+                LEFT JOIN biblioitems m USING (biblioitemnumber)
+                LEFT JOIN biblio b ON (i.biblionumber=b.biblionumber)
+                WHERE DATE_SUB(CURDATE(),INTERVAL 30 DAY) <= i.dateaccessioned AND m.isbn IS NOT NULL AND m.isbn != ''
+                GROUP BY biblionumber
+                HAVING isbn != ""
+                ORDER BY rand()
+                LIMIT 30
+                </pre>
+                <p>Note: You can add an additional column named 'localcover' to your report - this should be blank if the biblio doesn't have a localcover and can contain any other data if it does. If this column is populated a local cover will be used. Example below:</p>
+                <pre>
+                SELECT DISTINCT biblio.title, biblio.biblionumber,  SUBSTRING_INDEX(biblioitems.isbn, ' ', 1) AS isbn, c.imagenumber AS localcover 
+                FROM items 
+                LEFT JOIN biblioitems USING (biblioitemnumber) 
+                LEFT JOIN biblio ON (items.biblionumber=biblio.biblionumber)
+                LEFT JOIN biblioimages c ON (items.biblionumber=c.biblionumber)
+                WHERE biblioitems.isbn IS NOT NULL AND biblioitems.isbn !=''
+                ORDER  BY RAND()
+                LIMIT  15
+                </pre>
+            </div>
+        </fieldset>
+
+        <p>
+
+        <input type="hidden" name="save" value="1" />
+
+        <input type="submit" value="Save configuration" />
+    </form>
+
+    [% Asset.js( "lib/codemirror/yaml.min.js" ) | $raw %]
+    [% Asset.js( "lib/codemirror/lint.min.js" ) | $raw %]
+    [% Asset.js( "lib/linters/js-yaml.min.js" ) | $raw %]
+    [% Asset.js( "lib/codemirror/yaml-lint.min.js" ) | $raw %]
+
+    <script>
+        $( document ).ready( function () {
+            var editor = CodeMirror.fromTextArea( document.getElementById( "mapping" ), {
+                lineNumbers: true,
+                mode: 'text/x-yaml',
+                lineWrapping: false,
+                gutters: ["CodeMirror-lint-markers"],
+                lint: true
+            });
+        });
+    </script>
+
+[% INCLUDE 'intranet-bottom.inc' %]
